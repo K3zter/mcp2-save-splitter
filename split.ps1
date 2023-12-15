@@ -5,7 +5,7 @@ $tempFolder = ".\temp"
 $cmd = "$($myMcFolder)\mymc.exe"
 
 
-Function Collect-Psu {
+Function Move-PsuFromRootDir {
 	$psuFiles = Get-ChildItem -Path ".\*" -Include *.psu
 
 	foreach($psuFile in $psuFiles) {
@@ -19,14 +19,14 @@ Function Collect-Psu {
 	}
 }
 
-Function Rename-Mc2s {
+Function Move-Mc2sToTemp {
 	$mcFiles = Get-ChildItem -Path "$($importFolder)\*" -Include *.mc2
 	foreach($mcFile in $mcFiles) {
 		Copy-Item  -Force -Path "$($importFolder)\$($mcFile.Name)" -Destination "$($tempFolder)\$($mcFile.BaseName).bin"
 	}
 }
 
-Function Move-Bins {
+Function Move-BinsToTemp {
 	$binFiles = Get-ChildItem -Path "$($importFolder)\*" -Include *.bin
 	foreach($binFile in $binFiles) {
 		if (Test-Path -Path "$($tempFolder)\$($binFile.BaseName).bin") {
@@ -39,14 +39,14 @@ Function Move-Bins {
 	}
 }
 
-Function Move-Psus {
+Function Move-PsusToTemp {
 	$psuFiles = Get-ChildItem -Path "$($importFolder)\*" -Include *.psu
 	foreach($psuFile in $psuFiles) {
 		Copy-Item  -Force -Path "$($importFolder)\$($psuFile.Name)" -Destination "$($tempFolder)\$($psuFile.Name)"
 	}
 }
 
-Function Recover-Saves {
+Function Get-PsusFromBins {
 	$binFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include *.bin
 
 	foreach($binFile in $binFiles) {
@@ -74,11 +74,11 @@ Function Recover-Saves {
 				& $cmd $prm
 			}
 		}
-		Collect-Psu
+		Move-PsuFromRootDir
 	}
 }
 
-Function Generate-NewSaves {
+Function New-Vmcs {
 	$psuFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include *.psu
 
 	foreach($psuFile in $psuFiles) {
@@ -116,14 +116,20 @@ Function Generate-NewSaves {
 	}
 }
 
-if (!(Test-Path -Path "$($tempFolder)")) {
-	New-Item -ItemType Directory -Force -Path "$($tempFolder)"
+Function New-TempDir {
+	if (!(Test-Path -Path "$($tempFolder)")) {
+		New-Item -ItemType Directory -Force -Path "$($tempFolder)"
+	}
 }
- 
-Move-Psus
-Rename-Mc2s
-Move-Bins
-Recover-Saves
-Generate-NewSaves
 
-Remove-Item -Force -Recurse -Path "$($tempFolder)"
+Function Clear-TempDir {
+	Remove-Item -Force -Recurse -Path "$($tempFolder)"
+}
+
+New-TempDir 
+Move-PsusToTemp
+Move-Mc2sToTemp
+Move-BinsToTemp
+Get-PsusFromBins
+New-Vmcs
+Clear-TempDir
