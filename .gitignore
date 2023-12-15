@@ -1,0 +1,9 @@
+#ignore any user files and mymc
+import/*
+export/*
+mymc/*
+
+#include files explaining directory purpose
+!generated\ mcp2\ files\ will\ appear\ here
+!place\ files\ to\ import\ here
+!place\ mymc\ v2.6g\ files\ here
