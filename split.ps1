@@ -26,6 +26,14 @@ Function Move-Mc2sToTemp {
 	}
 }
 
+Function Move-Ps2sToTemp {
+	$mcFiles = Get-ChildItem -Path "$($importFolder)\*" -Include *.ps2
+	foreach($mcFile in $mcFiles) {
+		
+		Copy-Item  -Force -Path (Join-Path $importFolder $mcFile.Name) -Destination  (Join-Path $tempFolder $mcFile.Name)
+	}
+}
+
 Function Move-BinsToTemp {
 	$binFiles = Get-ChildItem -Path "$($importFolder)\*" -Include *.bin
 	foreach($binFile in $binFiles) {
@@ -71,6 +79,38 @@ Function Get-PsusFromBins {
 			foreach($save in $saves) {
 				echo "Found $($save) in $($binFile.BaseName)..."
 				$prm = "$($tempFolder)\$($binFile.Name)", "export", $save
+				& $cmd $prm
+			}
+		}
+		Move-PsuFromRootDir
+	}
+}
+
+Function Get-PsusFromPs2s {
+	$ps2Files = Get-ChildItem -Path "$($tempFolder)\*" -Include *.ps2
+
+	foreach($ps2File in $ps2Files) {
+		$prm = "$($tempFolder)\$($ps2File.Name)", "dir"
+		$saveList = & $cmd $prm
+		if($saveList.getType().Name -eq "String") {
+			echo "No saves found in $($ps2File.BaseName)"
+			continue
+		}
+		$saves = New-Object Collections.Generic.List[String]
+		for($i = 0; $i -lt $saveList.Length; $i = $i + 3) {
+			if ($saveList[$i] -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
+				$endOfId = $saveList[$i].IndexOf(" ")
+				$psuName = $saveList[$i].Substring(0,$endOfId).Trim()
+				if($psuName.Length) {
+					$saves.Add($psuName)
+				}
+			}
+		}
+		
+		if($saves.Length) {
+			foreach($save in $saves) {
+				echo "Found $($save) in $($ps2File.BaseName)..."
+				$prm = "$($tempFolder)\$($ps2File.Name)", "export", $save
 				& $cmd $prm
 			}
 		}
@@ -126,10 +166,20 @@ Function Clear-TempDir {
 	Remove-Item -Force -Recurse -Path "$($tempFolder)"
 }
 
+Function Move-FilesToTempDir {
+	Move-PsusToTemp
+	Move-Mc2sToTemp
+	Move-Ps2sToTemp
+	Move-BinsToTemp
+}
+
+Function Export-Psus {
+	Get-PsusFromBins
+	Get-PsusFromPs2s
+}
+
 New-TempDir 
-Move-PsusToTemp
-Move-Mc2sToTemp
-Move-BinsToTemp
-Get-PsusFromBins
+Move-FilesToTempDir
+Export-Psus
 New-Vmcs
 Clear-TempDir
