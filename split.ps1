@@ -50,39 +50,44 @@ Function Move-BinsToTemp {
 Function Move-PsusToTemp {
 	$psuFiles = Get-ChildItem -Path "$($importFolder)\*" -Include *.psu
 	foreach($psuFile in $psuFiles) {
-		Copy-Item  -Force -Path "$($importFolder)\$($psuFile.Name)" -Destination "$($tempFolder)\$($psuFile.Name)"
+		Copy-Item  -Force -Path (Join-Path $importFolder $psuFile.Name) -Destination (Join-Path $tempFolder $psuFile.Name)
 	}
+}
+
+Function Export-Psus($mcFile) {
+	$prm = "$($tempFolder)\$($mcFile.Name)", "dir"
+	$saveList = & $cmd $prm
+	if($saveList.getType().Name -eq "String") {
+		echo "No saves found in $($mcFile.BaseName)"
+		continue
+	}
+	$saves = New-Object Collections.Generic.List[String]
+	for($i = 0; $i -lt $saveList.Length; $i = $i + 3) {
+		if ($saveList[$i] -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
+			$endOfId = $saveList[$i].IndexOf(" ")
+			$psuName = $saveList[$i].Substring(0,$endOfId).Trim()
+			if($psuName.Length) {
+				$saves.Add($psuName)
+			}
+		}
+	}
+	
+	if($saves.Length) {
+		foreach($save in $saves) {
+			echo "Found $($save) in $($mcFile.BaseName)..."
+			$prm = "$($tempFolder)\$($mcFile.Name)", "export", $save
+			& $cmd $prm
+		}
+	}
+	Move-PsuFromRootDir
 }
 
 Function Get-PsusFromBins {
 	$binFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include *.bin
 
 	foreach($binFile in $binFiles) {
-		$prm = "$($tempFolder)\$($binFile.Name)", "dir"
-		$saveList = & $cmd $prm
-		if($saveList.getType().Name -eq "String") {
-			echo "No saves found in $($binFile.BaseName)"
-			continue
-		}
-		$saves = New-Object Collections.Generic.List[String]
-		for($i = 0; $i -lt $saveList.Length; $i = $i + 3) {
-			if ($saveList[$i] -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
-				$endOfId = $saveList[$i].IndexOf(" ")
-				$psuName = $saveList[$i].Substring(0,$endOfId).Trim()
-				if($psuName.Length) {
-					$saves.Add($psuName)
-				}
-			}
-		}
-		
-		if($saves.Length) {
-			foreach($save in $saves) {
-				echo "Found $($save) in $($binFile.BaseName)..."
-				$prm = "$($tempFolder)\$($binFile.Name)", "export", $save
-				& $cmd $prm
-			}
-		}
-		Move-PsuFromRootDir
+		echo ''
+		Export-Psus $binFile
 	}
 }
 
@@ -90,31 +95,7 @@ Function Get-PsusFromPs2s {
 	$ps2Files = Get-ChildItem -Path "$($tempFolder)\*" -Include *.ps2
 
 	foreach($ps2File in $ps2Files) {
-		$prm = "$($tempFolder)\$($ps2File.Name)", "dir"
-		$saveList = & $cmd $prm
-		if($saveList.getType().Name -eq "String") {
-			echo "No saves found in $($ps2File.BaseName)"
-			continue
-		}
-		$saves = New-Object Collections.Generic.List[String]
-		for($i = 0; $i -lt $saveList.Length; $i = $i + 3) {
-			if ($saveList[$i] -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
-				$endOfId = $saveList[$i].IndexOf(" ")
-				$psuName = $saveList[$i].Substring(0,$endOfId).Trim()
-				if($psuName.Length) {
-					$saves.Add($psuName)
-				}
-			}
-		}
-		
-		if($saves.Length) {
-			foreach($save in $saves) {
-				echo "Found $($save) in $($ps2File.BaseName)..."
-				$prm = "$($tempFolder)\$($ps2File.Name)", "export", $save
-				& $cmd $prm
-			}
-		}
-		Move-PsuFromRootDir
+		Export-Psus $ps2File
 	}
 }
 
@@ -173,13 +154,13 @@ Function Move-FilesToTempDir {
 	Move-BinsToTemp
 }
 
-Function Export-Psus {
+Function Get-Psus {
 	Get-PsusFromBins
 	Get-PsusFromPs2s
 }
 
 New-TempDir 
 Move-FilesToTempDir
-Export-Psus
+Get-Psus
 New-Vmcs
 Clear-TempDir
