@@ -1,4 +1,5 @@
 $myMcFolder = ".\mymc"
+$psvConverterCmd = ".\psv-converter\psv-converter-win.exe"
 $importFolder = ".\import"
 $exportFolder = ".\export"
 $tempFolder = ".\temp"
@@ -47,12 +48,29 @@ Function Move-BinsToTemp {
 	}
 }
 
-Function Move-PsusToTemp {
-	$psuFiles = Get-ChildItem -Path "$($importFolder)\*" -Include *.psu
-	foreach($psuFile in $psuFiles) {
-		Copy-Item  -Force -Path (Join-Path $importFolder $psuFile.Name) -Destination (Join-Path $tempFolder $psuFile.Name)
+Function Move-SaveFilesToTemp {
+	$saveFiles = Get-ChildItem -Path "$($importFolder)\*" -Include ('*.psu','*.xps','*.max','*.cbs','*.sps')
+	foreach($saveFile in $saveFiles) {
+		Copy-Item  -Force -Path (Join-Path $importFolder $saveFile.Name) -Destination (Join-Path $tempFolder $saveFile.Name)
 	}
 }
+
+
+Function Move-PsvsToTemp {
+	$psvFiles = Get-ChildItem -Path (Join-Path $importFolder "\*") -Include *.psv
+	foreach($psvFile in $psvFiles) {
+		Copy-Item  -Force -Path (Join-Path $importFolder $psvFile.Name) -Destination (Join-Path $tempFolder $psvFile.Name)
+	}
+}
+
+
+Function Convert-PsvsToPsus {
+	$psvFiles = Get-ChildItem -Path (Join-Path $tempFolder "\*") -Include *.psv
+	foreach($psvFile in $psvFiles) {
+		& $psvConverterCmd (Join-Path $psvFile.Directory $psvFile.Name)
+	}
+}
+
 
 Function Export-Psus($mcFile) {
 	$prm = "$($tempFolder)\$($mcFile.Name)", "dir"
@@ -99,24 +117,43 @@ Function Get-PsusFromPs2s {
 	}
 }
 
-Function New-Vmcs {
-	$psuFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include *.psu
+Function Get-PsuWithGameId($saveFile) {
+	Copy-Item -Path ".\blank.bin" -Destination (Join-Path $tempFolder "tempCard.bin")
+	$prm = $prm = (Join-Path $tempFolder "tempCard.bin"), "import", (Join-Path $tempFolder $($saveFile.Name))
+	& $cmd $prm
+	$newSaveFile = Get-ChildItem -Path (Join-Path $tempFolder "tempCard.bin")
+	Export-Psus($newSaveFile)
+	Remove-Item -Path (Join-Path $tempFolder "tempCard.bin")
+}
 
-	foreach($psuFile in $psuFiles) {
+Function Repair-SavesWithNoGameId {
+	$saveFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include ('*.psu','*.xps','*.max','*.cbs','*.sps')
+	foreach($saveFile in $saveFiles) {
+		if(!($saveFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d')) {
+			Get-PsuWithGameId($saveFile)
+			Remove-Item -Path (Join-Path $saveFile.Directory $saveFile.Name)
+		}
+	}
+}
+
+Function New-Vmcs {
+	$saveFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include ('*.psu','*.xps','*.max','*.cbs','*.sps')
+
+	foreach($saveFile in $saveFiles) {
 		$channelNum = 1
-		if($psuFile.BaseName.indexOf("-MCPCH-") -gt -1) {
-			$channelNum = ($psuFile.BaseName[-1..-1][0])
+		if($saveFile.BaseName.indexOf("-MCPCH-") -gt -1) {
+			$channelNum = ($saveFile.BaseName[-1..-1][0])
 			$channelNum = [int]"$channelNum"
 			if($channelNum -gt 8) {
-				echo "Too many saves for $($psuFile.BaseName), ignoring"
+				echo "Too many saves for $($saveFile.BaseName), ignoring"
 				continue
 			}
-			echo "Multiple saves for $($psuFile.BaseName), creating card in channel $($channelNum)"
+			echo "Multiple saves for $($saveFile.BaseName), creating card in channel $($channelNum)"
 		}
-		if($psuFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
+		if($saveFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
 			$gameId = $Matches.0
 		} else {
-			echo "Could not find Game ID in $($psuFile.Name)"
+			echo "Could not find Game ID in $($saveFile.Name)"
 			continue
 		}
 		if (!(Test-Path -Path ".\$($exportFolder)\$($gameId)\")) {
@@ -126,11 +163,11 @@ Function New-Vmcs {
 			Copy-Item -Path ".\blank.bin" -Destination ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin"
 		}
 		
-		$prm = $prm = ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin", "import", ".\$($tempFolder)\$($psuFile.Name)"
+		$prm = $prm = ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin", "import", ".\$($tempFolder)\$($saveFile.Name)"
 		& $cmd $prm
 	}
 
-	$exportFiles = $psuFiles = Get-ChildItem -Recurse -Path "$($exportFolder)\*" -Include *.bin
+	$exportFiles = $saveFiles = Get-ChildItem -Recurse -Path "$($exportFolder)\*" -Include *.bin
 
 	foreach($exportFile in $exportFiles) {
 		Move-Item -Path "$($exportFile.Directory)\$($exportFile.Name)" -Destination "$($exportFile.Directory)\$($exportFile.BaseName).mc2" -Force
@@ -148,10 +185,15 @@ Function Clear-TempDir {
 }
 
 Function Move-FilesToTempDir {
-	Move-PsusToTemp
+	Move-SaveFilesToTemp
 	Move-Mc2sToTemp
 	Move-Ps2sToTemp
 	Move-BinsToTemp
+}
+
+Function Convert-PsvFiles {
+	Move-PsvsToTemp
+	Convert-PsvsToPsus
 }
 
 Function Get-Psus {
@@ -161,6 +203,8 @@ Function Get-Psus {
 
 New-TempDir 
 Move-FilesToTempDir
+Convert-PsvFiles
 Get-Psus
+Repair-SavesWithNoGameId
 New-Vmcs
 Clear-TempDir
