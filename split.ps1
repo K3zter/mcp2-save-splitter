@@ -5,6 +5,25 @@ $exportFolder = ".\export"
 $tempFolder = ".\temp"
 $cmd = "$($myMcFolder)\mymc.exe"
 
+Function Confirm-MyMcPresent {
+	$fileExists = Test-Path $cmd
+	if (!$fileExists) {
+		echo "ERROR: mymc.exe not dedected - please check the readme"
+		exit
+	}
+}
+
+Function Confirm-PsvConverterPresent {
+	return Test-Path $psvConverterCmd
+}
+
+Function Confirm-MyMcVersion {
+	$version = (& $cmd "--version" | Select-String -Pattern '2.6.g2').Matches.Value
+	if($version -ne '2.6.g2')  {
+		echo "ERROR: Incorrect version of MyMc detected - please check the readme"
+		exit
+	}
+}
 
 Function Move-PsuFromRootDir {
 	$psuFiles = Get-ChildItem -Path ".\*" -Include *.psu
@@ -192,6 +211,11 @@ Function Move-FilesToTempDir {
 }
 
 Function Convert-PsvFiles {
+	$psvFiles = Get-ChildItem -Path (Join-Path $importFolder "\*") -Include *.psv
+	if($psvFiles.Length -gt 0 -and !(Confirm-PsvConverterPresent)) {
+		echo ".psv files ignored as psv-converter-win.exe not found - please check the readme"
+		return
+	}
 	Move-PsvsToTemp
 	Convert-PsvsToPsus
 }
@@ -201,6 +225,8 @@ Function Get-Psus {
 	Get-PsusFromPs2s
 }
 
+Confirm-MyMcPresent
+Confirm-MyMcVersion
 New-TempDir 
 Move-FilesToTempDir
 Convert-PsvFiles
