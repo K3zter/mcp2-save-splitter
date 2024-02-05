@@ -31,7 +31,7 @@ Function Move-PsuFromRootDir {
 	foreach($psuFile in $psuFiles) {
 		if (Test-Path -Path ".\$($tempFolder)\$($psuFile.Name)") {
 			$filesWithMatchingName = Get-ChildItem -Path ".\$($tempFolder)\$($psuFile.BaseName)*" -Include *.psu
-			$newName = "$($psuFile.BaseName)-MCPCH-$($filesWithMatchingName.Count + 1).psu"
+			$newName = "$($psuFile.BaseName)-$($filesWithMatchingName.Count + 1).psu"
 			Move-Item -Path ".\$($psuFile.Name)" -Destination ".\$($tempFolder)\$($newName)"
 		} else {
 			Move-Item -Path ".\$($psuFile.Name)"  -Destination ".\$($tempFolder)\$($psuFile.Name)"
@@ -160,15 +160,6 @@ Function New-Vmcs {
 
 	foreach($saveFile in $saveFiles) {
 		$channelNum = 1
-		if($saveFile.BaseName.indexOf("-MCPCH-") -gt -1) {
-			$channelNum = ($saveFile.BaseName[-1..-1][0])
-			$channelNum = [int]"$channelNum"
-			if($channelNum -gt 8) {
-				echo "Too many saves for $($saveFile.BaseName), ignoring"
-				continue
-			}
-			echo "Multiple saves for $($saveFile.BaseName), creating card in channel $($channelNum)"
-		}
 		if($saveFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
 			$gameId = $Matches.0
 		} else {
@@ -182,8 +173,25 @@ Function New-Vmcs {
 			Copy-Item -Path ".\blank.bin" -Destination ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin"
 		}
 		
-		$prm = $prm = ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin", "import", ".\$($tempFolder)\$($saveFile.Name)"
-		& $cmd $prm
+		$prm = ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin", "import", ".\$($tempFolder)\$($saveFile.Name)"
+		$result = & $cmd $prm 2>&1
+		$result = [string] $result
+		if($result.indexOf("directory exists") -gt -1) {
+			for ($i = 2; $i -lt 10; $i++) {
+				if ($i -eq 9) {
+					echo "Too many saves for $($saveFile.BaseName), ignoring"
+					continue
+				} 
+				if (!(Test-Path -Path ".\$($exportFolder)\$($gameId)\$($gameId)-$($i).bin")) {
+					Copy-Item -Path ".\blank.bin" -Destination ".\$($exportFolder)\$($gameId)\$($gameId)-$($i).bin"
+					$prm = ".\$($exportFolder)\$($gameId)\$($gameId)-$($i).bin", "import", ".\$($tempFolder)\$($saveFile.Name)"
+					& $cmd $prm
+					break
+				}
+			}
+		} else {
+			echo $result
+		}
 	}
 
 	$exportFiles = $saveFiles = Get-ChildItem -Recurse -Path "$($exportFolder)\*" -Include *.bin
