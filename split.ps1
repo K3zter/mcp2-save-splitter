@@ -155,6 +155,44 @@ Function Repair-SavesWithNoGameId {
 	}
 }
 
+Function New-CardIfNotExist {
+	Param
+    (
+         [Parameter(Mandatory=$true, Position=0)]
+         [string] $gameId,
+         [Parameter(Mandatory=$true, Position=1)]
+         [string] $channelNum
+    )
+	if (!(Test-Path -Path (Join-Path $exportFolder $gameId))) {
+		New-Item -ItemType Directory -Force -Path (Join-Path $exportFolder $gameId)
+	}
+
+	if (!(Test-Path -Path (Join-Path $exportFolder $gameId | Join-Path -ChildPath "$($gameId)-$($channelNum).bin"))) {
+		Copy-Item -Path ".\blank.bin" -Destination (Join-Path $exportFolder $gameId | Join-Path -ChildPath "$($gameId)-$($channelNum).bin")
+	}
+}
+
+Function Import-FileToCard {
+	Param
+    (
+         [Parameter(Mandatory=$true, Position=0)]
+         [string] $gameId,
+         [Parameter(Mandatory=$true, Position=1)]
+         [string] $channelNum,
+		 [Parameter(Mandatory=$true, Position=2)]
+         $saveFile
+    )
+	$prm = ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin", "import", ".\$($tempFolder)\$($saveFile.Name)"
+	$result = & $cmd $prm 2>&1
+	$result = [string] $result
+	if($result.indexOf("directory exists") -gt -1 -or $result.indexOf("out of space") -gt -1) {
+		return $false
+	} else {
+		return $result
+	}
+
+}
+
 Function New-Vmcs {
 	$saveFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include ('*.psu','*.xps','*.max','*.cbs','*.sps')
 
@@ -166,31 +204,25 @@ Function New-Vmcs {
 			echo "Could not find Game ID in $($saveFile.Name)"
 			continue
 		}
-		if (!(Test-Path -Path ".\$($exportFolder)\$($gameId)\")) {
-			New-Item -ItemType Directory -Force -Path ".\$($exportFolder)\$($gameId)\"
-		}
-		if (!(Test-Path -Path ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin")) {
-			Copy-Item -Path ".\blank.bin" -Destination ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin"
-		}
-		
-		$prm = ".\$($exportFolder)\$($gameId)\$($gameId)-$($channelNum).bin", "import", ".\$($tempFolder)\$($saveFile.Name)"
-		$result = & $cmd $prm 2>&1
-		$result = [string] $result
-		if($result.indexOf("directory exists") -gt -1) {
-			for ($i = 2; $i -lt 10; $i++) {
-				if ($i -eq 9) {
-					echo "Too many saves for $($saveFile.BaseName), ignoring"
-					continue
-				} 
-				if (!(Test-Path -Path ".\$($exportFolder)\$($gameId)\$($gameId)-$($i).bin")) {
-					Copy-Item -Path ".\blank.bin" -Destination ".\$($exportFolder)\$($gameId)\$($gameId)-$($i).bin"
-					$prm = ".\$($exportFolder)\$($gameId)\$($gameId)-$($i).bin", "import", ".\$($tempFolder)\$($saveFile.Name)"
-					& $cmd $prm
-					break
-				}
-			}
-		} else {
+
+		New-CardIfNotExist $gameId $channelNum
+		$result = Import-FileToCard $gameId $channelNum $saveFile
+		if($result) {
 			echo $result
+			continue
+		}
+
+		for ($nextChannel = 2; $nextChannel -lt 10; $nextChannel++) {
+			if ($nextChannel -eq 9) {
+				echo "Too many saves for $($saveFile.BaseName), ignoring"
+				continue
+			} 
+			New-CardIfNotExist $gameId $nextChannel
+			$result = Import-FileToCard $gameId $nextChannel $saveFile
+			if($result) {
+				echo $result
+				break
+			}
 		}
 	}
 
