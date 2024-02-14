@@ -8,7 +8,7 @@ $cmd = "$($myMcFolder)\mymc.exe"
 Function Confirm-MyMcPresent {
 	$fileExists = Test-Path $cmd
 	if (!$fileExists) {
-		echo "ERROR: mymc.exe not dedected - please check the readme"
+		Write-Output "ERROR: mymc.exe not dedected - please check the readme"
 		exit
 	}
 }
@@ -20,9 +20,19 @@ Function Confirm-PsvConverterPresent {
 Function Confirm-MyMcVersion {
 	$version = (& $cmd "--version" | Select-String -Pattern '2.6.g2').Matches.Value
 	if($version -ne '2.6.g2')  {
-		echo "ERROR: Incorrect version of MyMc detected - please check the readme"
+		Write-Output "ERROR: Incorrect version of MyMc detected - please check the readme"
 		exit
 	}
+}
+
+
+Function Confirm-FilesToImport {
+	$saveFileCount = (Get-ChildItem -Path "$($importFolder)\*" -Include ('*.psu','*.xps','*.max','*.cbs','*.sps','*.psv','*.mc2','*.ps2','*.bin') |  Measure-Object).Count
+	if ($saveFileCount -eq 0) {
+		Write-Output "No save files detected in import folder"
+		exit
+	}
+
 }
 
 Function Move-PsuFromRootDir {
@@ -95,7 +105,7 @@ Function Export-Psus($mcFile) {
 	$prm = "$($tempFolder)\$($mcFile.Name)", "dir"
 	$saveList = & $cmd $prm
 	if($saveList.getType().Name -eq "String") {
-		echo "No saves found in $($mcFile.BaseName)"
+		Write-Output "No saves found in $($mcFile.BaseName)"
 		continue
 	}
 	$saves = New-Object Collections.Generic.List[String]
@@ -111,7 +121,7 @@ Function Export-Psus($mcFile) {
 	
 	if($saves.Length) {
 		foreach($save in $saves) {
-			echo "Found $($save) in $($mcFile.BaseName)..."
+			Write-Output "Found $($save) in $($mcFile.BaseName)..."
 			$prm = "$($tempFolder)\$($mcFile.Name)", "export", $save
 			& $cmd $prm
 		}
@@ -123,7 +133,7 @@ Function Get-PsusFromBins {
 	$binFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include *.bin
 
 	foreach($binFile in $binFiles) {
-		echo ''
+		Write-Output ''
 		Export-Psus $binFile
 	}
 }
@@ -201,26 +211,26 @@ Function New-Vmcs {
 		if($saveFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
 			$gameId = $Matches.0
 		} else {
-			echo "Could not find Game ID in $($saveFile.Name)"
+			Write-Output "Could not find Game ID in $($saveFile.Name)"
 			continue
 		}
 
 		New-CardIfNotExist $gameId $channelNum
 		$result = Import-FileToCard $gameId $channelNum $saveFile
 		if($result) {
-			echo $result
+			Write-Output $result
 			continue
 		}
 
 		for ($nextChannel = 2; $nextChannel -lt 10; $nextChannel++) {
 			if ($nextChannel -eq 9) {
-				echo "Too many saves for $($saveFile.BaseName), ignoring"
+				Write-Output "Too many saves for $($saveFile.BaseName), ignoring"
 				continue
 			} 
 			New-CardIfNotExist $gameId $nextChannel
 			$result = Import-FileToCard $gameId $nextChannel $saveFile
 			if($result) {
-				echo $result
+				Write-Output $result
 				break
 			}
 		}
@@ -253,7 +263,7 @@ Function Move-FilesToTempDir {
 Function Convert-PsvFiles {
 	$psvFiles = Get-ChildItem -Path (Join-Path $importFolder "\*") -Include *.psv
 	if($psvFiles.Length -gt 0 -and !(Confirm-PsvConverterPresent)) {
-		echo ".psv files ignored as psv-converter-win.exe not found - please check the readme"
+		Write-Output ".psv files ignored as psv-converter-win.exe not found - please check the readme"
 		return
 	}
 	Move-PsvsToTemp
@@ -267,6 +277,7 @@ Function Get-Psus {
 
 Confirm-MyMcPresent
 Confirm-MyMcVersion
+Confirm-FilesToImport
 New-TempDir 
 Move-FilesToTempDir
 Convert-PsvFiles
