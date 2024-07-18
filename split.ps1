@@ -4,7 +4,7 @@ $importFolder = ".\import"
 $exportFolder = ".\export"
 $tempFolder = ".\temp"
 $cmd = "$($myMcFolder)\mymc.exe"
-$psuNameMaxLength = 20
+$psuNameMaxLength = 32
 
 Function Confirm-MyMcPresent {
 	$fileExists = Test-Path $cmd
