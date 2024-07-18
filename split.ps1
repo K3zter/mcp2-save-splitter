@@ -4,6 +4,7 @@ $importFolder = ".\import"
 $exportFolder = ".\export"
 $tempFolder = ".\temp"
 $cmd = "$($myMcFolder)\mymc.exe"
+$psuNameMaxLength = 20
 
 Function Confirm-MyMcPresent {
 	$fileExists = Test-Path $cmd
@@ -111,8 +112,7 @@ Function Export-Psus($mcFile) {
 	$saves = New-Object Collections.Generic.List[String]
 	for($i = 0; $i -lt $saveList.Length; $i = $i + 3) {
 		if ($saveList[$i] -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
-			$endOfId = $saveList[$i].IndexOf(" ")
-			$psuName = $saveList[$i].Substring(0,$endOfId).Trim()
+			$psuName = $saveList[$i].Substring(0, $psuNameMaxLength).Trim()
 			if($psuName.Length) {
 				$saves.Add($psuName)
 			}
