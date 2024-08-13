@@ -17,7 +17,11 @@ The script currently performs four separate functions:
  - **Remove file/folder from existing VMCs**: Remove a given named file or folder from every single `.mc2` file (MCP2 VMC) in the `existing_cards` folder
  - **Import PSU to existing VMCs**: Import a specified `.psu` file to every single `.mc2` file (MCP2 VMC) in the `existing_cards` folder
 
-The latter three functions are intended for the purposes of adding an OPL IGR command to every VMC - but it is quite flexible and it may be useful for other things. I don't know what! Instructions for each of these functions are outlined below. All of the provided example files contain the same `igr.elf` file. This is a small PS2 app created by [JonathanDotCel](https://github.com/JonathanDotCel/bootcard_igr) that tells the Memcard Pro 2 to mount its boot card, before resetting the PS2. In order to use this with OPL, set your `igr path` to point to this file (e.g. `mc0:/igr/igr.elf` - use mc0 for slot 1, mc1 for slot 2). Whenever you perform IGR from an OPL launched game, MCP2 will mount your boot card before resetting.
+The latter three functions are intended for the purposes of adding an OPL IGR command to every VMC - but it is quite flexible and it may be useful for other things. I don't know what! Instructions for each of these functions are outlined below.
+
+All of the provided example files contain the same `igr.elf` file. This is a small PS2 app created by [JonathanDotCel](https://github.com/JonathanDotCel/bootcard_igr) that tells the Memcard Pro 2 to mount its boot card, before resetting the PS2.
+
+To use this with OPL, set your `igr path` to point to this file (e.g. `mc0:/igr/igr.elf` - use mc0 for slot 1, mc1 for slot 2). Whenever you perform IGR from an OPL launched game, MCP2 will mount your boot card before resetting.
 
 # IMPORTANT: PLEASE ENSURE ALL YOUR SAVE FILES ARE BACKED UP BEFORE USING THIS TOOL TO PREVENT RISK OF LOSS OR CORRUPTION
 
