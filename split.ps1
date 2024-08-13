@@ -1,3 +1,16 @@
+
+param(
+	[Parameter(Position=0)]
+	[string]$command="split",
+    [Parameter()]
+    [string]$basecard="blank.bin",
+	[Parameter()]
+    [string]$psu,
+	[Parameter()]
+    [string]$folder
+ )
+
+
 $myMcFolder = ".\mymc"
 $psvConverterCmd = ".\psv-converter\psv-converter-win.exe"
 $importFolder = ".\import"
@@ -27,6 +40,38 @@ Function Confirm-MyMcVersion {
 	}
 }
 
+Function Confirm-BaseCardExists {
+	$fileExists = Test-Path (Join-Path ".\" $basecard)
+	if (!$fileExists) {
+		Write-Output "ERROR: Designated base card $basecard not detected"
+		exit
+	}
+}
+
+Function Confirm-PsuFileExists {
+	if(!$psu) {
+		Write-Output "ERROR: Please specify a save to add using -psu"
+		exit
+	}
+	if(!($psu -Like "*.psu")) {
+		Write-Output "ERROR: PSU file extension incorrect - ensure the file is a .psu file"
+		exit
+	}
+
+	$fileExists = Test-Path (Join-Path ".\" $psu)
+	if (!$fileExists) {
+		Write-Output "ERROR: PSU file to add $psu not detected"
+		exit
+	}
+
+}
+
+Function Confirm-FolderToRemove {
+	if(!$folder) {
+		Write-Output "ERROR: Please specify a folder to remove using -folder"
+		exit
+	}
+}
 
 Function Confirm-FilesToImport {
 	$saveFileCount = (Get-ChildItem -Path "$($importFolder)\*" -Include ('*.psu','*.xps','*.max','*.cbs','*.sps','*.psv','*.mc2','*.ps2','*.bin') |  Measure-Object).Count
@@ -34,20 +79,13 @@ Function Confirm-FilesToImport {
 		Write-Output "No save files detected in import folder"
 		exit
 	}
-
 }
 
-Function Move-PsuFromRootDir {
-	$psuFiles = Get-ChildItem -Path ".\*" -Include *.psu
-
-	foreach($psuFile in $psuFiles) {
-		if (Test-Path -Path ".\$($tempFolder)\$($psuFile.Name)") {
-			$filesWithMatchingName = Get-ChildItem -Path ".\$($tempFolder)\$($psuFile.BaseName)*" -Include *.psu
-			$newName = "$($psuFile.BaseName)-$($filesWithMatchingName.Count + 1).psu"
-			Move-Item -Path ".\$($psuFile.Name)" -Destination ".\$($tempFolder)\$($newName)"
-		} else {
-			Move-Item -Path ".\$($psuFile.Name)"  -Destination ".\$($tempFolder)\$($psuFile.Name)"
-		}
+Function Confirm-FilesInExport {
+	$vmcFileCount = (Get-ChildItem -Path "$($exportFolder)\*" -Include ('*.mc2') -Recurse |  Measure-Object).Count
+	if ($vmcFileCount -eq 0) {
+		Write-Output "No VMC files detected in export folder"
+		exit
 	}
 }
 
@@ -55,6 +93,49 @@ Function Move-Mc2sToTemp {
 	$mcFiles = Get-ChildItem -Path "$($importFolder)\*" -Include *.mc2
 	foreach($mcFile in $mcFiles) {
 		Copy-Item  -Force -Path "$($importFolder)\$($mcFile.Name)" -Destination "$($tempFolder)\$($mcFile.BaseName).bin"
+	}
+}
+
+Function Rename-ExportMc2sToBin {
+	$mcFiles = Get-ChildItem -Path "$($exportFolder)\*" -Include *.mc2 -Recurse
+	foreach($mcFile in $mcFiles) {
+		Rename-Item -Force -Path "$($mcFile.Directory)\$($mcFile.Name)" -NewName "$($mcFile.BaseName).bin"
+	}
+}
+
+Function Rename-ExportBinsToMc2 {
+	$mcFiles = Get-ChildItem -Path "$($exportFolder)\*" -Include *.bin -Recurse
+	foreach($mcFile in $mcFiles) {
+		Rename-Item -Force -Path "$($mcFile.Directory)\$($mcFile.Name)" -NewName "$($mcFile.BaseName).mc2"
+	}
+}
+
+Function Add-PsuToExportBins {
+	$mcFiles = Get-ChildItem -Path "$($exportFolder)\*" -Include *.bin -Recurse
+	foreach($mcFile in $mcFiles) {
+		Write-Output("Adding PSU to $($mcFile.Name.Replace(".bin",".mc2"))...")
+		$fullMcFilePath = "$($mcFile.Directory)\$($mcFile.Name)"
+		$result = & $cmd $fullMcFilePath import $psu 2>&1
+		$result = [string] $result
+		if($result.indexOf("directory exists") -gt -1) {
+			Write-Output("ERROR: $($mcFile.Name.Replace(".bin",".mc2")) already contains a folder with this name")
+		}
+		if($result.indexOf("out of space") -gt -1) {
+			Write-Output("ERROR: $($mcFile.Name.Replace(".bin",".mc2")) - not enough space for file")
+		}
+	}
+}
+
+Function Remove-PsuFromExportBins {
+	$mcFiles = Get-ChildItem -Path "$($exportFolder)\*" -Include *.bin -Recurse
+	foreach($mcFile in $mcFiles) {
+		Write-Output("Removing $folder dir from $($mcFile.Name.Replace(".bin",".mc2"))...")
+		$fullMcFilePath = "$($mcFile.Directory)\$($mcFile.Name)"
+		$result = & $cmd $fullMcFilePath delete $folder 2>&1
+		$result = [string] $result
+		if($result -and $result.indexOf("directory not found") -gt -1) {
+			Write-Output("ERROR: $($mcFile.Name.Replace(".bin",".mc2")) does not have $folder folder")
+		}
 	}
 }
 
@@ -125,18 +206,19 @@ Function Export-Psus($mcFile) {
 			$sanitizedFileName = $save.Split([IO.Path]::GetInvalidFileNameChars()) -join '_'
 			$counter = 1
 			Write-Output "Found $($save) in $($mcFile.BaseName)..."
-			if(Test-Path -Path "$($sanitizedFileName).psu" -PathType Leaf) {
-				while(Test-Path -Path "$($sanitizedFileName)-$($counter).psu" -PathType Leaf) {
+			$fullMcFilePath = "$($tempFolder)\$($mcFile.Name)"
+			if(Test-Path -Path "$($tempFolder)\$($sanitizedFileName).psu" -PathType Leaf) {
+				while(Test-Path -Path "$($tempFolder)\$($sanitizedFileName)-$($counter).psu" -PathType Leaf) {
 					$counter++
 				}
-				$prm = "$($tempFolder)\$($mcFile.Name)", "export", "--output-file=$($sanitizedFileName)-$($counter).psu", $save
+				$prm = $fullMcFilePath, "export", "--directory=$tempFolder", "--output-file=$($sanitizedFileName)-$($counter).psu", $save
 			}else{
-				$prm = "$($tempFolder)\$($mcFile.Name)", "export", "--output-file=$($sanitizedFileName).psu", $save
+				$prm = $fullMcFilePath, "export", "--directory=$tempFolder", "--output-file=$($sanitizedFileName).psu", $save
 			}
 			& $cmd $prm
 		}
 	}
-	Move-PsuFromRootDir
+	
 }
 
 Function Get-PsusFromBins {
@@ -157,7 +239,7 @@ Function Get-PsusFromPs2s {
 }
 
 Function Get-PsuWithGameId($saveFile) {
-	Copy-Item -Path ".\blank.bin" -Destination (Join-Path $tempFolder "tempCard.bin")
+	Copy-Item -Path (Join-Path ".\" $basecard) -Destination (Join-Path $tempFolder "tempCard.bin")
 	$prm = $prm = (Join-Path $tempFolder "tempCard.bin"), "import", (Join-Path $tempFolder $($saveFile.Name))
 	& $cmd $prm
 	$newSaveFile = Get-ChildItem -Path (Join-Path $tempFolder "tempCard.bin")
@@ -188,7 +270,7 @@ Function New-CardIfNotExist {
 	}
 
 	if (!(Test-Path -Path (Join-Path $exportFolder $gameId | Join-Path -ChildPath "$($gameId)-$($channelNum).bin"))) {
-		Copy-Item -Path ".\blank.bin" -Destination (Join-Path $exportFolder $gameId | Join-Path -ChildPath "$($gameId)-$($channelNum).bin")
+		Copy-Item -Path (Join-Path ".\" $basecard) -Destination (Join-Path $exportFolder $gameId | Join-Path -ChildPath "$($gameId)-$($channelNum).bin")
 	}
 }
 
@@ -287,11 +369,32 @@ Function Get-Psus {
 
 Confirm-MyMcPresent
 Confirm-MyMcVersion
-Confirm-FilesToImport
-New-TempDir 
-Move-FilesToTempDir
-Convert-PsvFiles
-Get-Psus
-Repair-SavesWithNoGameId
-New-Vmcs
-Clear-TempDir
+
+if($command -eq "split") {
+	Confirm-BaseCardExists
+	Confirm-FilesToImport
+	New-TempDir 
+	Move-FilesToTempDir
+	Convert-PsvFiles
+	Get-Psus
+	Repair-SavesWithNoGameId
+	New-Vmcs
+	Clear-TempDir
+}
+
+if($command -eq "add") {
+	Confirm-PsuFileExists
+	Confirm-FilesInExport
+	Rename-ExportMc2sToBin
+	Add-PsuToExportBins
+	Rename-ExportBinsToMc2
+}
+
+if($command -eq "remove") {
+	Confirm-FolderToRemove
+	Confirm-FilesInExport
+	Rename-ExportMc2sToBin
+	Remove-PsuFromExportBins
+	Rename-ExportBinsToMc2
+}
+
