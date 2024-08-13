@@ -1,6 +1,7 @@
 #ignore any user files and mymc
 import/*
 export/*
+existing_cards/*
 mymc/*
 psv-converter/*
 
@@ -9,3 +10,4 @@ psv-converter/*
 !place\ files\ to\ import\ here
 !place\ mymc\ v2.6g\ files\ here
 !place\ psv-converter-win.exe\ here
+!place\ MCP2\ folders\ from\ PS2\ dir\ here
