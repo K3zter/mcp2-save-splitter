@@ -46,6 +46,8 @@ Open a PowerShell window in the same folder as the script, and run the command (
 
     .\mcp2tools.ps1 add -psu igr.psu
 
+Once the process is complete, copy the contents of the `existing_cards` folder back into the `PS2` folder of your MCP2 SD card - overwriting the existing files. **Ensure your MCP2 files are backed up prior to this step.**
+
 ## Remove folder from existing VMCs
 This can be used to remove a given named directory `.mc2` file in the `existing_cards` folder. Begin by populating the `existing_cards` folder with the contents of your `PS2` folder from the MCP2 SD card.
 
@@ -56,3 +58,5 @@ The main purpose of this command is to remove directories you have added previou
 Open a PowerShell window in the same folder as the script, and run the command (for example):
 
     .\mcp2tools.ps1 remove -folder igr
+
+Once the process is complete, copy the contents of the `existing_cards` folder back into the `PS2` folder of your MCP2 SD card - overwriting the existing files. **Ensure your MCP2 files are backed up prior to this step.**
