@@ -48,7 +48,10 @@ Open a PowerShell window in the same folder as the script, and run the command (
 
 ## Remove folder from existing VMCs
 This can be used to remove a given named directory `.mc2` file in the `existing_cards` folder. Begin by populating the `existing_cards` folder with the contents of your `PS2` folder from the MCP2 SD card.
-The main purpose of this command is to remove directories you have added previously via this script, for example if they are no longer needed or to update the files. `igr` is the name of the folder added if you use the included files - if you import your own files you will need to know the name of the directory you created.
+
+The main purpose of this command is to remove directories you have added previously via this script, for example if they are no longer needed or to update the files.
+
+`igr` is the name of the folder added if you use the included files - if you import your own files you will need to know the name of the directory you created.
 
 Open a PowerShell window in the same folder as the script, and run the command (for example):
 
