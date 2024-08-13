@@ -7,7 +7,9 @@ param(
 	[Parameter()]
     [string]$psu,
 	[Parameter()]
-    [string]$folder
+    [string]$folder,
+	[Parameter()]
+    [string]$file
  )
 
 
@@ -40,6 +42,22 @@ Function Confirm-MyMcVersion {
 	}
 }
 
+Function Confirm-CommandIsValid {
+	if(!($command -in @('split','add','import','remove'))) {
+		Write-Output('ERROR: Please use one of the following commands:')
+		Write-Output('split')
+		Write-Output('add')
+		Write-Output('import')
+		Write-Output('remove')
+		exit
+	}
+
+	if($command -eq "remove" -and $file -and $folder) {
+		Write-Output('ERROR: Please use only one of -file or -folder parameter with remove command. To remove a file from a folder, use -file folder/file.ext')
+		exit
+	}
+}
+
 Function Confirm-BaseCardExists {
 	$fileExists = Test-Path (Join-Path ".\" $basecard)
 	if (!$fileExists) {
@@ -50,7 +68,7 @@ Function Confirm-BaseCardExists {
 
 Function Confirm-PsuFileExists {
 	if(!$psu) {
-		Write-Output "ERROR: Please specify a save to add using -psu"
+		Write-Output "ERROR: Please specify a save to import using -psu"
 		exit
 	}
 	if(!($psu -Like "*.psu")) {
@@ -60,15 +78,35 @@ Function Confirm-PsuFileExists {
 
 	$fileExists = Test-Path (Join-Path ".\" $psu)
 	if (!$fileExists) {
-		Write-Output "ERROR: PSU file to add $psu not detected"
+		Write-Output "ERROR: PSU file to import $psu not detected"
 		exit
 	}
 
 }
 
-Function Confirm-FolderToRemove {
+Function Confirm-FileToAddExists {
+	if(!$file) {
+		Write-Output "ERROR: Please specify a file to add using -file"
+		exit
+	}
+
+	$fileExists = Test-Path (Join-Path ".\" $file)
+	if (!$fileExists) {
+		Write-Output "ERROR: File to add $file not detected"
+		exit
+	}
+}
+
+Function Confirm-FolderToDelete {
 	if(!$folder) {
-		Write-Output "ERROR: Please specify a folder to remove using -folder"
+		Write-Output "ERROR: Please specify a folder to delete using -folder"
+		exit
+	}
+}
+
+Function Confirm-FileToRemove {
+	if(!$file) {
+		Write-Output "ERROR: Please specify a file to remove using -file"
 		exit
 	}
 }
@@ -110,10 +148,10 @@ Function Rename-ExistingCardsBinsToMc2 {
 	}
 }
 
-Function Add-PsuToExistingCards {
+Function Import-PsuToExistingCards {
 	$mcFiles = Get-ChildItem -Path "$($existingCardsFolder)\*" -Include *.bin -Recurse
 	foreach($mcFile in $mcFiles) {
-		Write-Output("Adding PSU to $($mcFile.Name.Replace(".bin",".mc2"))...")
+		Write-Output("Importing PSU to $($mcFile.Name.Replace(".bin",".mc2"))...")
 		$fullMcFilePath = "$($mcFile.Directory)\$($mcFile.Name)"
 		$result = & $cmd $fullMcFilePath import $psu 2>&1
 		$result = [string] $result
@@ -126,15 +164,45 @@ Function Add-PsuToExistingCards {
 	}
 }
 
-Function Remove-PsuFromExistingCards {
+Function Add-FileToExistingCards {
 	$mcFiles = Get-ChildItem -Path "$($existingCardsFolder)\*" -Include *.bin -Recurse
 	foreach($mcFile in $mcFiles) {
-		Write-Output("Removing $folder dir from $($mcFile.Name.Replace(".bin",".mc2"))...")
+		$fullMcFilePath = "$($mcFile.Directory)\$($mcFile.Name)"
+		if($folder) {
+			Write-Output("Adding file $folder/$file to $($mcFile.Name.Replace(".bin",".mc2"))...")
+			$result = & $cmd $fullMcFilePath mkdir $folder 2>&1
+			$result = & $cmd $fullMcFilePath add -d $folder $file 2>&1
+			$result = [string] $result
+		} else {
+			Write-Output("Adding file $file to root of $($mcFile.Name.Replace(".bin",".mc2"))...")
+			$result = & $cmd $fullMcFilePath add $file 2>&1
+			$result = [string] $result
+		}
+	}
+}
+
+Function Remove-FolderFromExistingCards {
+	$mcFiles = Get-ChildItem -Path "$($existingCardsFolder)\*" -Include *.bin -Recurse
+	foreach($mcFile in $mcFiles) {
+		Write-Output("Removing $folder folder from $($mcFile.Name.Replace(".bin",".mc2"))...")
 		$fullMcFilePath = "$($mcFile.Directory)\$($mcFile.Name)"
 		$result = & $cmd $fullMcFilePath delete $folder 2>&1
 		$result = [string] $result
 		if($result -and $result.indexOf("directory not found") -gt -1) {
-			Write-Output("ERROR: $($mcFile.Name.Replace(".bin",".mc2")) does not have $folder folder")
+			Write-Output("WARNING: $($mcFile.Name.Replace(".bin",".mc2")) does not have $folder folder")
+		}
+	}
+}
+
+Function Remove-FileFromExistingCards {
+	$mcFiles = Get-ChildItem -Path "$($existingCardsFolder)\*" -Include *.bin -Recurse
+	foreach($mcFile in $mcFiles) {
+		Write-Output("Removing $file from $($mcFile.Name.Replace(".bin",".mc2"))...")
+		$fullMcFilePath = "$($mcFile.Directory)\$($mcFile.Name)"
+		$result = & $cmd $fullMcFilePath remove $file 2>&1
+		$result = [string] $result
+		if($result -and $result.indexOf("file not found") -gt -1) {
+			Write-Output("WARNING: $($mcFile.Name.Replace(".bin",".mc2")) does not contain $file")
 		}
 	}
 }
@@ -359,6 +427,7 @@ Function Get-Psus {
 
 Confirm-MyMcPresent
 Confirm-MyMcVersion
+Confirm-CommandIsValid
 
 if($command -eq "split") {
 	Confirm-BaseCardExists
@@ -372,19 +441,35 @@ if($command -eq "split") {
 	Clear-TempDir
 }
 
-if($command -eq "add") {
+if($command -eq "import") {
 	Confirm-PsuFileExists
 	Confirm-FilesInExistingCards
 	Rename-ExistingCardsMc2sToBin
-	Add-PsuToExistingCards
+	Import-PsuToExistingCards
 	Rename-ExistingCardsBinsToMc2
 }
 
-if($command -eq "remove") {
-	Confirm-FolderToRemove
+if($command -eq "add") {
+	Confirm-FileToAddExists
 	Confirm-FilesInExistingCards
 	Rename-ExistingCardsMc2sToBin
-	Remove-PsuFromExistingCards
+	Add-FileToExistingCards
+	Rename-ExistingCardsBinsToMc2
+}
+
+if($command -eq "remove" -and $folder) {
+	Confirm-FolderToDelete
+	Confirm-FilesInExistingCards
+	Rename-ExistingCardsMc2sToBin
+	Remove-FolderFromExistingCards
+	Rename-ExistingCardsBinsToMc2
+}
+
+if($command -eq "remove" -and $file) {
+	Confirm-FileToRemove
+	Confirm-FilesInExistingCards
+	Rename-ExistingCardsMc2sToBin
+	Remove-FileFromExistingCards
 	Rename-ExistingCardsBinsToMc2
 }
 
