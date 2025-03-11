@@ -5,6 +5,7 @@ $exportFolder = ".\export"
 $tempFolder = ".\temp"
 $cmd = "$($myMcFolder)\mymc.exe"
 $psuNameMaxLength = 32
+$gameIdRegex = 'S[A-Z]{3}-\d{5}'
 
 Function Confirm-MyMcPresent {
 	$fileExists = Test-Path $cmd
@@ -111,7 +112,7 @@ Function Export-Psus($mcFile) {
 	}
 	$saves = New-Object Collections.Generic.List[String]
 	for($i = 0; $i -lt $saveList.Length; $i = $i + 3) {
-		if ($saveList[$i] -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
+		if ($saveList[$i] -match $gameIdRegex) {
 			$psuName = $saveList[$i].Substring(0, $psuNameMaxLength).Trim()
 			if($psuName.Length) {
 				$saves.Add($psuName)
@@ -158,7 +159,7 @@ Function Get-PsuWithGameId($saveFile) {
 Function Repair-SavesWithNoGameId {
 	$saveFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include ('*.psu','*.xps','*.max','*.cbs','*.sps')
 	foreach($saveFile in $saveFiles) {
-		if(!($saveFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d')) {
+		if(!($saveFile.BaseName -match $gameIdRegex)) {
 			Get-PsuWithGameId($saveFile)
 			Remove-Item -Path (Join-Path $saveFile.Directory $saveFile.Name)
 		}
@@ -208,7 +209,7 @@ Function New-Vmcs {
 
 	foreach($saveFile in $saveFiles) {
 		$channelNum = 1
-		if($saveFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
+		if($saveFile.BaseName -match $gameIdRegex) {
 			$gameId = $Matches.0
 		} else {
 			Write-Output "Could not find Game ID in $($saveFile.Name)"
