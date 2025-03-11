@@ -112,7 +112,7 @@ Function Export-Psus($mcFile) {
 	$saves = New-Object Collections.Generic.List[String]
 	for($i = 0; $i -lt $saveList.Length; $i = $i + 3) {
 		if ($saveList[$i] -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
-			$psuName = $saveList[$i].Substring(0, $psuNameMaxLength).Trim()
+			$psuName = $saveList[$i].Substring(0, $psuNameMaxLength).Trim().Replace('[/:"<>\\\*\?\|]', '_')
 			if($psuName.Length) {
 				$saves.Add($psuName)
 			}
