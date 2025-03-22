@@ -122,9 +122,16 @@ Function Export-Psus($mcFile) {
 	
 	if($saves.Length) {
 		foreach($save in $saves) {
+			$sanitizedFileName = $save.Split([IO.Path]::GetInvalidFileNameChars()) -join '_'
+			$counter = 1
 			Write-Output "Found $($save) in $($mcFile.BaseName)..."
-			$prm = "$($tempFolder)\$($mcFile.Name)", "export", $save
+			$prm = "$($tempFolder)\$($mcFile.Name)", "export", "-o $($sanitizedFileName).psu", $save
 			& $cmd $prm
+			while ( $LASTEXITCODE ) {
+				$prm = "$($tempFolder)\$($mcFile.Name)", "export", "-o $($sanitizedFileName)-$($counter).psu", $save
+				& $cmd $prm
+				$counter++
+			}
 		}
 	}
 	Move-PsuFromRootDir
