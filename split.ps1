@@ -125,13 +125,15 @@ Function Export-Psus($mcFile) {
 			$sanitizedFileName = $save.Split([IO.Path]::GetInvalidFileNameChars()) -join '_'
 			$counter = 1
 			Write-Output "Found $($save) in $($mcFile.BaseName)..."
-			$prm = "$($tempFolder)\$($mcFile.Name)", "export", "-o $($sanitizedFileName).psu", $save
-			& $cmd $prm
-			while ( $LASTEXITCODE ) {
-				$prm = "$($tempFolder)\$($mcFile.Name)", "export", "-o $($sanitizedFileName)-$($counter).psu", $save
-				& $cmd $prm
-				$counter++
+			if(Test-Path -Path "$($sanitizedFileName).psu" -PathType Leaf) {
+				while(Test-Path -Path "$($sanitizedFileName)-$($counter).psu" -PathType Leaf) {
+					$counter++
+				}
+				$prm = "$($tempFolder)\$($mcFile.Name)", "export", "--output-file=$($sanitizedFileName)-$($counter).psu", $save
+			}else{
+				$prm = "$($tempFolder)\$($mcFile.Name)", "export", "--output-file=$($sanitizedFileName).psu", $save
 			}
+			& $cmd $prm
 		}
 	}
 	Move-PsuFromRootDir
