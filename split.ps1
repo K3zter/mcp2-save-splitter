@@ -5,6 +5,7 @@ $exportFolder = ".\export"
 $tempFolder = ".\temp"
 $cmd = "$($myMcFolder)\mymc.exe"
 $psuNameMaxLength = 32
+$gameIdRegex = 'S[A-Z]{3}-\d{5}'
 
 Function Confirm-MyMcPresent {
 	$fileExists = Test-Path $cmd
@@ -111,7 +112,7 @@ Function Export-Psus($mcFile) {
 	}
 	$saves = New-Object Collections.Generic.List[String]
 	for($i = 0; $i -lt $saveList.Length; $i = $i + 3) {
-		if ($saveList[$i] -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
+		if ($saveList[$i] -match $gameIdRegex) {
 			$psuName = $saveList[$i].Substring(0, $psuNameMaxLength).Trim()
 			if($psuName.Length) {
 				$saves.Add($psuName)
@@ -121,8 +122,17 @@ Function Export-Psus($mcFile) {
 	
 	if($saves.Length) {
 		foreach($save in $saves) {
+			$sanitizedFileName = $save.Split([IO.Path]::GetInvalidFileNameChars()) -join '_'
+			$counter = 1
 			Write-Output "Found $($save) in $($mcFile.BaseName)..."
-			$prm = "$($tempFolder)\$($mcFile.Name)", "export", $save
+			if(Test-Path -Path "$($sanitizedFileName).psu" -PathType Leaf) {
+				while(Test-Path -Path "$($sanitizedFileName)-$($counter).psu" -PathType Leaf) {
+					$counter++
+				}
+				$prm = "$($tempFolder)\$($mcFile.Name)", "export", "--output-file=$($sanitizedFileName)-$($counter).psu", $save
+			}else{
+				$prm = "$($tempFolder)\$($mcFile.Name)", "export", "--output-file=$($sanitizedFileName).psu", $save
+			}
 			& $cmd $prm
 		}
 	}
@@ -158,7 +168,7 @@ Function Get-PsuWithGameId($saveFile) {
 Function Repair-SavesWithNoGameId {
 	$saveFiles = Get-ChildItem -Path "$($tempFolder)\*" -Include ('*.psu','*.xps','*.max','*.cbs','*.sps')
 	foreach($saveFile in $saveFiles) {
-		if(!($saveFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d')) {
+		if(!($saveFile.BaseName -match $gameIdRegex)) {
 			Get-PsuWithGameId($saveFile)
 			Remove-Item -Path (Join-Path $saveFile.Directory $saveFile.Name)
 		}
@@ -208,7 +218,7 @@ Function New-Vmcs {
 
 	foreach($saveFile in $saveFiles) {
 		$channelNum = 1
-		if($saveFile.BaseName -match 'S[A-Z][A-Z][A-Z]-\d\d\d\d\d') {
+		if($saveFile.BaseName -match $gameIdRegex) {
 			$gameId = $Matches.0
 		} else {
 			Write-Output "Could not find Game ID in $($saveFile.Name)"
